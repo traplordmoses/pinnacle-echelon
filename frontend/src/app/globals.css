@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --aero-sky: #87ceeb;
+  --aero-aqua: #00bcd4;
+  --aero-blue: #4fc3f7;
+}
+
+body {
+  background: linear-gradient(180deg, #c9e8f7 0%, #e4f3fc 25%, #f0f8ff 55%, #ffffff 100%);
+  color: #1e3a5f;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* ── Glassmorphism ─────────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.12);
+}
+
+.glass-dark {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* ── Glossy Buttons ────────────────────────────── */
+.btn-glossy {
+  background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 40%, #0ea5e9 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 188, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+}
+.btn-glossy:hover {
+  box-shadow: 0 6px 24px rgba(0, 188, 212, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+.btn-glossy:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 188, 212, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.btn-glossy:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-glossy-pink {
+  background: linear-gradient(180deg, #f0abfc 0%, #d946ef 40%, #a855f7 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+}
+.btn-glossy-pink:hover {
+  box-shadow: 0 6px 24px rgba(168, 85, 247, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-glossy-green {
+  background: linear-gradient(180deg, #6ee7b7 0%, #34d399 40%, #10b981 100%);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
+}
+.btn-glossy-green:hover {
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-glossy-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 9999px;
+}
+
+/* ── Aero Input ────────────────────────────────── */
+.aero-input {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(135, 206, 235, 0.4);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  color: #1e3a5f;
+  transition: all 0.2s ease;
+  outline: none;
+  width: 100%;
+}
+.aero-input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+  background: rgba(255, 255, 255, 0.75);
+}
+.aero-input::placeholder {
+  color: #94a3b8;
+}
+
+/* ── Decorative Blobs ──────────────────────────── */
+.blob {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.blob-1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.2), transparent 70%);
+  top: -150px;
+  right: -100px;
+}
+.blob-2 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(0, 188, 212, 0.12), transparent 70%);
+  bottom: -100px;
+  left: -100px;
+}
+.blob-3 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.1), transparent 70%);
+  top: 40%;
+  left: 50%;
+}
+
+/* ── Modal Overlay ─────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Scrollbar ─────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(135, 206, 235, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(135, 206, 235, 0.6);
+}
