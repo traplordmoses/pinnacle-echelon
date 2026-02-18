@@ -7,6 +7,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { parseEther } from "viem";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "@/contract";
+import { monadTestnet } from "@/wagmi";
 
 export default function CreateCategory() {
   const router = useRouter();
@@ -16,7 +17,7 @@ export default function CreateCategory() {
   const [submissionHours, setSubmissionHours] = useState("24");
   const [votingHours, setVotingHours] = useState("48");
 
-  const { writeContract, data: txHash, isPending } = useWriteContract();
+  const { writeContract, data: txHash, isPending, error: createError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
   });
@@ -38,6 +39,7 @@ export default function CreateCategory() {
       abi: CONTRACT_ABI,
       functionName: "createCategory",
       args: [title, parseEther(stakeAmount), subDeadline, voteDeadline],
+      chainId: monadTestnet.id,
     });
   };
 
@@ -179,6 +181,14 @@ export default function CreateCategory() {
             </div>
 
             {/* Submit */}
+            {createError && (
+              <p className="text-sm text-red-500 break-words">
+                {createError.message?.includes("User rejected")
+                  ? "Transaction rejected by user"
+                  : createError.message?.slice(0, 150) || "Transaction failed"}
+              </p>
+            )}
+
             {!isConnected ? (
               <div className="text-center">
                 <p className="text-sky-700/60 text-sm mb-3">

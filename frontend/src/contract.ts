@@ -5,12 +5,40 @@ export const CONTRACT_ABI = contractJson.abi as Abi;
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
   "0x0000000000000000000000000000000000000000") as `0x${string}`;
 
+const IPFS_GATEWAY_PRIMARY = "https://apac.orbitor.dev/ipfs/";
+const IPFS_GATEWAY_FALLBACK = "https://cloudflare-ipfs.com/ipfs/";
+
+function extractCid(hash: string): string {
+  if (hash.startsWith("ipfs://")) return hash.slice(7);
+  return hash;
+}
+
 export function ipfsToUrl(hash: string): string {
   if (!hash) return "";
-  if (hash.startsWith("http")) return hash;
-  if (hash.startsWith("ipfs://"))
-    return `https://ipfs.io/ipfs/${hash.slice(7)}`;
-  return `https://ipfs.io/ipfs/${hash}`;
+  if (hash.startsWith("http") && !hash.startsWith("https://ipfs.io/")) return hash;
+  const cid = hash.startsWith("http") ? hash.split("/ipfs/")[1] : extractCid(hash);
+  if (!cid) return hash;
+  return `${IPFS_GATEWAY_PRIMARY}${cid}`;
+}
+
+export function ipfsFallbackUrl(hash: string): string {
+  if (!hash) return "";
+  if (hash.startsWith("http") && !hash.includes("/ipfs/")) return hash;
+  const cid = hash.startsWith("http") ? hash.split("/ipfs/")[1] : extractCid(hash);
+  if (!cid) return hash;
+  return `${IPFS_GATEWAY_FALLBACK}${cid}`;
+}
+
+export function handleIpfsImgError(hash: string) {
+  return (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const fallback = ipfsFallbackUrl(hash);
+    if (img.src !== fallback) {
+      img.src = fallback;
+    } else {
+      img.style.display = "none";
+    }
+  };
 }
 
 export function formatTimeRemaining(deadline: number): string {

@@ -16,12 +16,14 @@ import {
   CONTRACT_ADDRESS,
   CONTRACT_ABI,
   ipfsToUrl,
+  handleIpfsImgError,
   formatTimeRemaining,
   getCategoryPhase,
   PHASE_CONFIG,
   shortenAddress,
   type Phase,
 } from "@/contract";
+import { monadTestnet } from "@/wagmi";
 
 // ── Types ──────────────────────────────────────────────────
 interface MemeData {
@@ -58,6 +60,8 @@ export default function CategoryPage() {
   const [betAmount, setBetAmount] = useState("1");
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [ipfsHash, setIpfsHash] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   // ── Contract Reads ──────────────────────────────────────
   const { data: categoryRaw } = useReadContract({
@@ -65,7 +69,7 @@ export default function CategoryPage() {
     abi: CONTRACT_ABI,
     functionName: "categories",
     args: [categoryId],
-    query: { refetchInterval: 8000 },
+    query: { refetchInterval: 300000 },
   });
 
   const { data: memeIds } = useReadContract({
@@ -73,7 +77,7 @@ export default function CategoryPage() {
     abi: CONTRACT_ABI,
     functionName: "getCategoryMemes",
     args: [categoryId],
-    query: { refetchInterval: 8000 },
+    query: { refetchInterval: 300000 },
   });
 
   const { data: userVotesUsed } = useReadContract({
@@ -81,7 +85,7 @@ export default function CategoryPage() {
     abi: CONTRACT_ABI,
     functionName: "votesUsed",
     args: [categoryId, safeAddr],
-    query: { enabled: !!address, refetchInterval: 8000 },
+    query: { enabled: !!address, refetchInterval: 300000 },
   });
 
   const { data: userHasBet } = useReadContract({
@@ -89,7 +93,7 @@ export default function CategoryPage() {
     abi: CONTRACT_ABI,
     functionName: "hasBet",
     args: [categoryId, safeAddr],
-    query: { enabled: !!address, refetchInterval: 8000 },
+    query: { enabled: !!address, refetchInterval: 300000 },
   });
 
   const { data: userBetMemeId } = useReadContract({
@@ -122,7 +126,7 @@ export default function CategoryPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: memesRaw } = useReadContracts({
     contracts: memeContracts as any,
-    query: { enabled: memeContracts.length > 0, refetchInterval: 5000 },
+    query: { enabled: memeContracts.length > 0, refetchInterval: 300000 },
   });
 
   // Batch read scores
@@ -139,7 +143,7 @@ export default function CategoryPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: scoresRaw } = useReadContracts({
     contracts: scoreContracts as any,
-    query: { enabled: scoreContracts.length > 0, refetchInterval: 5000 },
+    query: { enabled: scoreContracts.length > 0, refetchInterval: 300000 },
   });
 
   // Batch read share prices
@@ -156,7 +160,7 @@ export default function CategoryPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pricesRaw } = useReadContracts({
     contracts: priceContracts as any,
-    query: { enabled: priceContracts.length > 0, refetchInterval: 5000 },
+    query: { enabled: priceContracts.length > 0, refetchInterval: 300000 },
   });
 
   // Cost for bet modal
@@ -167,7 +171,7 @@ export default function CategoryPage() {
     args: [selectedMemeForBet!, BigInt(betAmount || "1")],
     query: {
       enabled: !!selectedMemeForBet && !!betAmount && parseInt(betAmount) > 0,
-      refetchInterval: 3000,
+      refetchInterval: 30000,
     },
   });
 
@@ -176,6 +180,7 @@ export default function CategoryPage() {
     writeContract: writeVote,
     data: voteTxHash,
     isPending: isVotePending,
+    error: voteError,
   } = useWriteContract();
   const { isLoading: isVoteConfirming, isSuccess: isVoteSuccess } =
     useWaitForTransactionReceipt({ hash: voteTxHash });
@@ -184,6 +189,7 @@ export default function CategoryPage() {
     writeContract: writeBet,
     data: betTxHash,
     isPending: isBetPending,
+    error: betError,
   } = useWriteContract();
   const { isLoading: isBetConfirming, isSuccess: isBetSuccess } =
     useWaitForTransactionReceipt({ hash: betTxHash });
@@ -192,6 +198,7 @@ export default function CategoryPage() {
     writeContract: writeSubmit,
     data: submitTxHash,
     isPending: isSubmitPending,
+    error: submitError,
   } = useWriteContract();
   const { isLoading: isSubmitConfirming, isSuccess: isSubmitSuccess } =
     useWaitForTransactionReceipt({ hash: submitTxHash });
@@ -200,6 +207,7 @@ export default function CategoryPage() {
     writeContract: writeResolve,
     data: resolveTxHash,
     isPending: isResolvePending,
+    error: resolveError,
   } = useWriteContract();
   const { isLoading: isResolveConfirming } = useWaitForTransactionReceipt({
     hash: resolveTxHash,
@@ -209,6 +217,7 @@ export default function CategoryPage() {
     writeContract: writeClaim,
     data: claimTxHash,
     isPending: isClaimPending,
+    error: claimError,
   } = useWriteContract();
   const { isLoading: isClaimConfirming } = useWaitForTransactionReceipt({
     hash: claimTxHash,
@@ -326,6 +335,7 @@ export default function CategoryPage() {
       abi: CONTRACT_ABI,
       functionName: "vote",
       args: [categoryId, mIds, amounts],
+      chainId: monadTestnet.id,
     });
   };
 
@@ -337,7 +347,40 @@ export default function CategoryPage() {
       functionName: "buyShares",
       args: [selectedMemeForBet, BigInt(betAmount)],
       value: shareCost as bigint,
+      chainId: monadTestnet.id,
     });
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setUploadError("");
+    setIsUploading(true);
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY;
+      const apiSecret = process.env.NEXT_PUBLIC_PINATA_SECRET;
+      if (!apiKey || !apiSecret) {
+        throw new Error("Pinata API keys not configured");
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+        method: "POST",
+        headers: {
+          pinata_api_key: apiKey,
+          pinata_secret_api_key: apiSecret,
+        },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Pinata upload failed: ${err}`);
+      }
+      const data = await res.json();
+      setIpfsHash(data.IpfsHash);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const submitMeme = () => {
@@ -348,6 +391,7 @@ export default function CategoryPage() {
       functionName: "submitMeme",
       args: [categoryId, ipfsHash],
       value: catStake,
+      chainId: monadTestnet.id,
     });
   };
 
@@ -357,6 +401,7 @@ export default function CategoryPage() {
       abi: CONTRACT_ABI,
       functionName: "resolveCategory",
       args: [categoryId],
+      chainId: monadTestnet.id,
     });
   };
 
@@ -366,6 +411,7 @@ export default function CategoryPage() {
       abi: CONTRACT_ABI,
       functionName: "claim",
       args: [categoryId],
+      chainId: monadTestnet.id,
     });
   };
 
@@ -382,11 +428,29 @@ export default function CategoryPage() {
     if (isSubmitSuccess) {
       setShowSubmitModal(false);
       setIpfsHash("");
+      setUploadError("");
     }
   }, [isSubmitSuccess]);
 
   const deadline =
     phase === "submissions" ? catSubDeadline : catVoteDeadline;
+
+  // Extract readable error messages
+  const parseError = (err: Error | null) => {
+    if (!err) return null;
+    const msg = err.message || String(err);
+    // Extract the revert reason if present
+    const revertMatch = msg.match(/reason:\s*(.+?)(?:\n|$)/);
+    if (revertMatch) return revertMatch[1].trim();
+    const shortMatch = msg.match(/Details:\s*(.+?)(?:\n|$)/);
+    if (shortMatch) return shortMatch[1].trim();
+    // User rejected
+    if (msg.includes("User rejected") || msg.includes("user rejected"))
+      return "Transaction rejected by user";
+    // Truncate long messages
+    if (msg.length > 120) return msg.slice(0, 120) + "...";
+    return msg;
+  };
 
   // ── Render ──────────────────────────────────────────────
   return (
@@ -508,6 +572,12 @@ export default function CategoryPage() {
               </button>
             )}
           </div>
+          {/* Inline errors for action bar */}
+          {(voteError || resolveError || claimError) && (
+            <p className="text-sm text-red-500 mt-3 break-words">
+              {parseError(voteError || resolveError || claimError)}
+            </p>
+          )}
         </div>
 
         {/* ── Main Content ─────────────────────────────── */}
@@ -550,11 +620,7 @@ export default function CategoryPage() {
                             src={ipfsToUrl(meme.ipfsHash)}
                             alt={`Meme #${meme.id}`}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "";
-                              (e.target as HTMLImageElement).className =
-                                "hidden";
-                            }}
+                            onError={handleIpfsImgError(meme.ipfsHash)}
                           />
                         ) : null}
                         {isWinner && (
@@ -717,10 +783,7 @@ export default function CategoryPage() {
                                 src={ipfsToUrl(m.ipfsHash)}
                                 alt=""
                                 className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).className =
-                                    "hidden";
-                                }}
+                                onError={handleIpfsImgError(m.ipfsHash)}
                               />
                             )}
                           </div>
@@ -853,6 +916,12 @@ export default function CategoryPage() {
                 </div>
               </div>
 
+              {betError && (
+                <p className="text-sm text-red-500 break-words">
+                  {parseError(betError)}
+                </p>
+              )}
+
               <div className="flex gap-3">
                 <button
                   onClick={() => {
@@ -893,11 +962,59 @@ export default function CategoryPage() {
               Submit Your Meme
             </h3>
             <p className="text-sm text-sky-700/60 mb-6">
-              Paste an IPFS hash or URL for your meme image. Costs{" "}
+              Upload an image or paste an IPFS hash / URL. Costs{" "}
               {formatEther(catStake)} MON to enter.
             </p>
 
             <div className="space-y-4">
+              {/* File Upload */}
+              <div>
+                <label className="block text-sm font-semibold text-sky-800 mb-2">
+                  Upload Image
+                </label>
+                <label
+                  className={`block glass rounded-2xl p-6 text-center cursor-pointer hover:bg-white/50 transition-all ${
+                    isUploading ? "pointer-events-none opacity-60" : ""
+                  }`}
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    disabled={isUploading}
+                  />
+                  {isUploading ? (
+                    <div className="space-y-2">
+                      <div className="w-8 h-8 border-3 border-sky-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <p className="text-sm text-sky-700/70">Uploading to IPFS...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <div className="text-2xl text-sky-400">+</div>
+                      <p className="text-sm text-sky-700/70">
+                        Click to select an image
+                      </p>
+                      <p className="text-xs text-sky-600/40">PNG, JPG, GIF, WEBP</p>
+                    </div>
+                  )}
+                </label>
+                {uploadError && (
+                  <p className="text-xs text-red-500 mt-2">{uploadError}</p>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-sky-200/50" />
+                <span className="text-xs text-sky-600/40 font-semibold">OR</span>
+                <div className="flex-1 h-px bg-sky-200/50" />
+              </div>
+
+              {/* Manual hash/URL input */}
               <div>
                 <label className="block text-sm font-semibold text-sky-800 mb-2">
                   IPFS Hash or Image URL
@@ -920,9 +1037,7 @@ export default function CategoryPage() {
                       src={ipfsToUrl(ipfsHash)}
                       alt="Preview"
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
+                      onError={handleIpfsImgError(ipfsHash)}
                     />
                   </div>
                 </div>
@@ -937,6 +1052,12 @@ export default function CategoryPage() {
                 </div>
               </div>
 
+              {submitError && (
+                <p className="text-sm text-red-500 break-words">
+                  {parseError(submitError)}
+                </p>
+              )}
+
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowSubmitModal(false)}
@@ -946,7 +1067,7 @@ export default function CategoryPage() {
                 </button>
                 <button
                   onClick={submitMeme}
-                  disabled={!ipfsHash || isSubmitPending || isSubmitConfirming}
+                  disabled={!ipfsHash || isUploading || isSubmitPending || isSubmitConfirming}
                   className="flex-1 btn-glossy-green py-2.5 rounded-2xl text-sm font-semibold"
                 >
                   {isSubmitPending
